@@ -1,5 +1,5 @@
 # Sử dụng Node.js v16 làm base image
-FROM node:20
+FROM node:16
 
 # Cài đặt các phụ thuộc cần thiết cho Puppeteer
 RUN apt-get update && apt-get install -y \
