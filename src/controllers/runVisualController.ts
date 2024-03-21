@@ -24,8 +24,7 @@ const runVisualController = (
             await handleUpdatePageSnapshotDocs(
                 urlList,
                 visualCheckId,
-                projectId,
-                server.io
+                projectId
             )
 
             reply.status(201).send({ message: 'OK' })
@@ -34,7 +33,13 @@ const runVisualController = (
             throw error
         }
     })
-
+    server.get('/test', async (request, reply) => {
+        reply.status(200).send({ message: 'connected ok' })
+    })
+    server.post('/test', async (request, reply) => {
+        const { userId } = request.body
+        reply.status(200).send({ message: 'connected ok', data: userId })
+    })
     server.post('/create-visual-page-snapshot', async (request, reply) => {
         const { urlList, userId, projectId } =
             request.body as CreatePageSnapRequestBody
@@ -55,12 +60,10 @@ const runVisualController = (
                 urlList
             )
 
-            reply
-                .status(201)
-                .send({
-                    message: 'OK',
-                    data: { urlList: formatedUrlList, visualCheckId },
-                })
+            reply.status(201).send({
+                message: 'OK',
+                data: { urlList: formatedUrlList, visualCheckId },
+            })
         } catch (error) {
             throw error
         }

@@ -1,53 +1,54 @@
 import fastify from 'fastify'
 import { initFirebaseAdmin } from '../firebase/admin'
-import { Server, Socket } from 'socket.io'
 import cors from '@fastify/cors'
-import fastifySocketIO from 'fastify-socket.io'
 import runVisualController from '../controllers/runVisualController'
+import { compareImage } from '../services/compareImage'
+import fastifyCompress from '@fastify/compress'
+import fastifyCookie from '@fastify/cookie'
+import fastifyHelmet from '@fastify/helmet'
+import cfrsProtection from '@fastify/csrf-protection'
 
-const PORT = Number(process.env.PORT) || 3000
+const PORT = Number(process.env.PORT) || 3001
 
 const buildServer = async () => {
-    const servers = await fastify({ logger: true })
-    await servers.register(cors, {
-        origin: ['http://localhost:3000', 'https://socket-queue.onrender.com'],
-    })
-    await servers.register(fastifySocketIO)
+    const server = await fastify({ logger: true })
 
-    await servers.register(runVisualController, {
-        prefix: '/run-visual-snapshots',
+    await Promise.all([
+        server.register(cors, { origin: '*' }),
+        server.register(fastifyCookie, { secret: 'xyz' }),
+        server.register(fastifyCompress, { global: true }),
+        server.register(fastifyHelmet, {
+            global: true,
+            contentSecurityPolicy: true,
+        }),
+        server.register(cfrsProtection, {
+            cookieOpts: { signed: true },
+            cookieKey: 'csrfToken',
+        }),
+        server.register(runVisualController, {
+            prefix: '/run-visual-snapshots',
+        }),
+    ])
+
+    server.get('/', async (request, reply) => {
+        const base64 = await compareImage()
+
+        reply.status(200).send({ message: 'ok', data: base64 })
     })
 
-    return servers
+    return server
 }
 
 const main = async () => {
     const app = await buildServer()
+
     try {
-        app.ready((error: any) => {
+        app.ready((error) => {
             if (error) throw error
 
             initFirebaseAdmin()
-
-            app.io.on('connection', (socket: Socket) => {
-                console.log('Socket connected!', socket.id)
-
-                socket.on('disconnect', (message) => {
-                    console.log(message)
-                })
-            })
         })
-        app.get('/', (req, res) => {
-            res.send(
-                '<h1>Chào mừng đến với ứng dụng của tôi!</h1><p>Đây là một đoạn văn.</p>'
-            )
-        })
-
         app.listen({ port: PORT }, (err, address) => {
-            if (err) {
-                console.error(err)
-                process.exit(1)
-            }
             console.log(`Server listening at ${address}`)
         })
     } catch (error) {
@@ -59,9 +60,3 @@ const main = async () => {
 }
 
 main()
-
-declare module 'fastify' {
-    interface FastifyInstance {
-        io: Server<any>
-    }
-}
