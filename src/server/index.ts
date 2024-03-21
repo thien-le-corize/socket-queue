@@ -2,7 +2,6 @@ import fastify from 'fastify'
 import { initFirebaseAdmin } from '../firebase/admin'
 import cors from '@fastify/cors'
 import runVisualController from '../controllers/runVisualController'
-import { compareImage } from '../services/compareImage'
 import fastifyCompress from '@fastify/compress'
 import fastifyCookie from '@fastify/cookie'
 import fastifyHelmet from '@fastify/helmet'
@@ -42,6 +41,7 @@ const main = async () => {
 
             initFirebaseAdmin()
         })
+
         app.listen({ port: PORT }, (err, address) => {
             console.log(`Server listening at ${address}`)
         })
