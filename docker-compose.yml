@@ -1,11 +1,15 @@
-version: "3"
+version: "3.8"
 services:
-  app:
+  screenshot-server:
     build: .
-    ports:
-      - "3000:3000"
     volumes:
       - .:/app
       - /app/node_modules
+    ports:
+      - "3000:3000"
     environment:
-      - NODE_ENV=development
+      NODE_ENV: development
+    # Tùy chọn để chạy Puppeteer trong Docker
+    cap_add:
+      - SYS_ADMIN
+    command: ["npm", "start"]
