@@ -5,11 +5,11 @@ import cors from '@fastify/cors'
 import fastifySocketIO from 'fastify-socket.io'
 import runVisualController from '../controllers/runVisualController'
 
-const PORT = Number(process.env.PORT) || 3000
+const PORT = 10000
 
 const buildServer = async () => {
     const server = await fastify({ logger: true })
-    await server.register(cors, { origin: 'https://webdiff-lovat.vercel.app' })
+    await server.register(cors, { origin: '*' })
     await server.register(fastifySocketIO)
 
     await server.register(runVisualController, {
@@ -41,6 +41,7 @@ const main = async () => {
                 '<h1>Chào mừng đến với ứng dụng của tôi!</h1><p>Đây là một đoạn văn.</p>'
             )
         })
+
         app.listen({ port: PORT }, (err, address) => {
             console.log(`Server listening at ${address}`)
         })

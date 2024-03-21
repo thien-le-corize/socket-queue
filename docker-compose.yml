@@ -7,7 +7,7 @@ services:
             # Loại bỏ node_modules khỏi volume để sử dụng lớp node_modules được cài đặt trong image
             # - /app/node_modules
         ports:
-            - '3000:3000'
+            - '10000:10000'
         environment:
             NODE_ENV: development
         # Tùy chọn để chạy Puppeteer trong Docker
