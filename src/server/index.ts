@@ -9,7 +9,9 @@ const PORT = Number(process.env.PORT) || 3000
 
 const buildServer = async () => {
     const server = await fastify({ logger: true })
-    await server.register(cors, { origin: 'http://localhost:3000' })
+    await server.register(cors, {
+        origin: ['http://localhost:3000', 'https://socket-queue.onrender.com'],
+    })
     await server.register(fastifySocketIO)
 
     await server.register(runVisualController, {
