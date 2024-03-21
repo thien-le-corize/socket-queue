@@ -16,6 +16,9 @@ const buildServer = async () => {
         prefix: '/run-visual-snapshots',
     })
 
+    await server.listen(10000, '0.0.0.0')
+    console.log(`Server listening on http://0.0.0.0:10000`)
+
     return server
 }
 
