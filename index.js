@@ -14,6 +14,11 @@ io.on("connection", (socket) => {
   });
 });
 
+app.get("/", (req, res) => {
+  res.send(
+    "<h1>Chào mừng đến với ứng dụng của tôi!</h1><p>Đây là một đoạn văn.</p>"
+  );
+});
 server.listen(3000, () => {
   console.log("listening on *:3000");
 });
