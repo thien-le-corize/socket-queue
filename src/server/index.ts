@@ -8,7 +8,7 @@ import runVisualController from '../controllers/runVisualController'
 const PORT = Number(process.env.PORT) || 3000
 
 const buildServer = async () => {
-    const server = await fastify({ logger: true })
+    const server = await fastify({ logger: false })
     await server.register(cors, { origin: '*' })
     await server.register(fastifySocketIO)
 
