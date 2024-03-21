@@ -8,22 +8,21 @@ import runVisualController from '../controllers/runVisualController'
 const PORT = Number(process.env.PORT) || 3000
 
 const buildServer = async () => {
-    const server = await fastify({ logger: true })
-    await server.register(cors, {
+    const servers = await fastify({ logger: true })
+    await servers.register(cors, {
         origin: ['http://localhost:3000', 'https://socket-queue.onrender.com'],
     })
-    await server.register(fastifySocketIO)
+    await servers.register(fastifySocketIO)
 
-    await server.register(runVisualController, {
+    await servers.register(runVisualController, {
         prefix: '/run-visual-snapshots',
     })
 
-    return server
+    return servers
 }
 
 const main = async () => {
     const app = await buildServer()
-
     try {
         app.ready((error: any) => {
             if (error) throw error
@@ -44,7 +43,11 @@ const main = async () => {
             )
         })
 
-        app.listen({ port: PORT }, (err, address) => {
+        app.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
+            if (err) {
+                console.error(err)
+                process.exit(1)
+            }
             console.log(`Server listening at ${address}`)
         })
     } catch (error) {
