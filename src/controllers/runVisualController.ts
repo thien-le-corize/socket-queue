@@ -24,7 +24,8 @@ const runVisualController = (
             await handleUpdatePageSnapshotDocs(
                 urlList,
                 visualCheckId,
-                projectId
+                projectId,
+                server.io
             )
 
             reply.status(201).send({ message: 'OK' })
@@ -37,8 +38,7 @@ const runVisualController = (
         reply.status(200).send({ message: 'connected ok' })
     })
     server.post('/test', async (request, reply) => {
-        const { userId } = request.body
-        reply.status(200).send({ message: 'connected ok', data: userId })
+        reply.status(200).send({ message: 'connected ok', data: request.body })
     })
     server.post('/create-visual-page-snapshot', async (request, reply) => {
         const { urlList, userId, projectId } =

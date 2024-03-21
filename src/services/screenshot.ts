@@ -67,7 +67,8 @@ export const handleAddPageSnapshotDocs = async (
 export const handleUpdatePageSnapshotDocs = async (
     urlList: UrlType[],
     visualCheckId: string,
-    projectId: string
+    projectId: string,
+    io: any
 ) => {
     try {
         for (const url of urlList) {
@@ -81,7 +82,7 @@ export const handleUpdatePageSnapshotDocs = async (
 
             await updateDoc(pagesSnapshotsRef, screenshotData)
 
-            handleEmitEvent(visualCheckId, url.pageSnapshotId)
+            handleEmitEvent(visualCheckId, url.pageSnapshotId, io)
         }
 
         handleUpdateProgress(visualCheckId)
@@ -105,10 +106,14 @@ const handleUpdateProgress = async (visualCheckId: string, url?: string) => {
     }
 }
 
-const handleEmitEvent = async (visualCheckId: string, pageSnapId: string) => {
+const handleEmitEvent = async (
+    visualCheckId: string,
+    pageSnapId: string,
+    io: any
+) => {
     try {
         const updatedData = await handleGetPageSnap(visualCheckId, pageSnapId)
-        // io.emit('updated-page-snapshot-data', updatedData)
+        io.emit('updated-page-snapshot-data', updatedData)
     } catch (error) {
         throw error
     }

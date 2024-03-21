@@ -1,7 +1,10 @@
 import fastify from 'fastify'
 import { initFirebaseAdmin } from '../firebase/admin'
+import { Server, Socket } from 'socket.io'
 import cors from '@fastify/cors'
+import fastifySocketIO from 'fastify-socket.io'
 import runVisualController from '../controllers/runVisualController'
+import { compareImage } from '../services/compareImage'
 import fastifyCompress from '@fastify/compress'
 import fastifyCookie from '@fastify/cookie'
 import fastifyHelmet from '@fastify/helmet'
@@ -11,11 +14,29 @@ const PORT = 3000
 
 const buildServer = async () => {
     const server = await fastify({ logger: true })
-    await server.register(cors, { origin: 'http://localhost:3000' })
-    await server.register(fastifySocketIO)
 
-    await server.register(runVisualController, {
-        prefix: '/run-visual-snapshots',
+    await Promise.all([
+        server.register(fastifySocketIO),
+        server.register(cors, { origin: 'http://localhost:3000' }),
+        server.register(fastifyCookie, { secret: 'xyz' }),
+        server.register(fastifyCompress, { global: true }),
+        server.register(fastifyHelmet, {
+            global: true,
+            contentSecurityPolicy: true,
+        }),
+        server.register(cfrsProtection, {
+            cookieOpts: { signed: true },
+            cookieKey: 'csrfToken',
+        }),
+        server.register(runVisualController, {
+            prefix: '/run-visual-snapshots',
+        }),
+    ])
+
+    server.get('/', async (request, reply) => {
+        const base64 = await compareImage()
+
+        reply.status(200).send({ message: 'ok', data: base64 })
     })
 
     return server
@@ -29,8 +50,15 @@ const main = async () => {
             if (error) throw error
 
             initFirebaseAdmin()
-        })
 
+            app.io.on('connection', (socket: Socket) => {
+                console.log('Socket connected!', socket.id)
+
+                socket.on('disconnect', (message) => {
+                    console.log(message)
+                })
+            })
+        })
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`Server listening on port ${PORT}`)
         })
@@ -43,3 +71,9 @@ const main = async () => {
 }
 
 main()
+
+declare module 'fastify' {
+    interface FastifyInstance {
+        io: Server<any>
+    }
+}
