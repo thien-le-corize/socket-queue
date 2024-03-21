@@ -8,8 +8,8 @@ import runVisualController from '../controllers/runVisualController'
 const PORT = Number(process.env.PORT) || 3000
 
 const buildServer = async () => {
-    const server = await fastify({ logger: false })
-    await server.register(cors, { origin: '*' })
+    const server = await fastify({ logger: true })
+    await server.register(cors, { origin: 'https://webdiff-lovat.vercel.app' })
     await server.register(fastifySocketIO)
 
     await server.register(runVisualController, {
