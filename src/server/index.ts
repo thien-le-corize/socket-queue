@@ -10,24 +10,13 @@ import cfrsProtection from '@fastify/csrf-protection'
 const PORT = 3000
 
 const buildServer = async () => {
-    const server = await fastify({ logger: false })
+    const server = await fastify({ logger: true })
+    await server.register(cors, { origin: 'http://localhost:3000' })
+    await server.register(fastifySocketIO)
 
-    await Promise.all([
-        server.register(cors, { origin: '*' }),
-        server.register(fastifyCookie, { secret: 'xyz' }),
-        server.register(fastifyCompress, { global: true }),
-        server.register(fastifyHelmet, {
-            global: true,
-            contentSecurityPolicy: true,
-        }),
-        server.register(cfrsProtection, {
-            cookieOpts: { signed: true },
-            cookieKey: 'csrfToken',
-        }),
-        server.register(runVisualController, {
-            prefix: '/run-visual-snapshots',
-        }),
-    ])
+    await server.register(runVisualController, {
+        prefix: '/run-visual-snapshots',
+    })
 
     return server
 }
