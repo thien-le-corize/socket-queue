@@ -8,10 +8,10 @@ import fastifyCookie from '@fastify/cookie'
 import fastifyHelmet from '@fastify/helmet'
 import cfrsProtection from '@fastify/csrf-protection'
 
-const PORT = Number(process.env.PORT) || 3001
+const PORT = 3000
 
 const buildServer = async () => {
-    const server = await fastify({ logger: true })
+    const server = await fastify({ logger: false })
 
     await Promise.all([
         server.register(cors, { origin: '*' }),
@@ -29,12 +29,6 @@ const buildServer = async () => {
             prefix: '/run-visual-snapshots',
         }),
     ])
-
-    server.get('/', async (request, reply) => {
-        const base64 = await compareImage()
-
-        reply.status(200).send({ message: 'ok', data: base64 })
-    })
 
     return server
 }
