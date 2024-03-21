@@ -5,19 +5,16 @@ import cors from '@fastify/cors'
 import fastifySocketIO from 'fastify-socket.io'
 import runVisualController from '../controllers/runVisualController'
 
-const PORT = 10000
+const PORT = Number(process.env.PORT) || 3000
 
 const buildServer = async () => {
     const server = await fastify({ logger: true })
-    await server.register(cors, { origin: '*' })
+    await server.register(cors, { origin: 'http://localhost:3000' })
     await server.register(fastifySocketIO)
 
     await server.register(runVisualController, {
         prefix: '/run-visual-snapshots',
     })
-
-    await server.listen(10000, '0.0.0.0')
-    console.log(`Server listening on http://0.0.0.0:10000`)
 
     return server
 }
