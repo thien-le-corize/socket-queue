@@ -17,7 +17,12 @@ const buildServer = async () => {
 
     await Promise.all([
         server.register(fastifySocketIO),
-        server.register(cors, { origin: 'http://localhost:3000' }),
+        server.register(cors, {
+            origin: [
+                'http://localhost:3000',
+                'https://webdiff-lovat.vercel.app',
+            ],
+        }),
         server.register(fastifyCookie, { secret: 'xyz' }),
         server.register(fastifyCompress, { global: true }),
         server.register(fastifyHelmet, {
