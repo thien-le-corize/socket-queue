@@ -63,8 +63,8 @@ const main = async () => {
                 })
             })
         })
-        app.listen({ port: PORT }, (err, address) => {
-            console.log(`Server listening at ${address}`)
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`Server listening on port ${PORT}`)
         })
     } catch (error) {
         if (error) {
