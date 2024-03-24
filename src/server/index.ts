@@ -10,14 +10,19 @@ import cfrsProtection from '@fastify/csrf-protection'
 import fastifySocketIO from 'fastify-socket.io'
 import { Server } from 'socket.io'
 
-const PORT = Number(process.env.PORT) || 3001
+const PORT = 3000
 
 const buildServer = async () => {
     const server = await fastify({ logger: false })
 
     await Promise.all([
         server.register(fastifySocketIO),
-        server.register(cors, { origin: 'http://localhost:3000' }),
+        server.register(cors, {
+            origin: [
+                'http://localhost:3000',
+                'https://webdiff-lovat.vercel.app/',
+            ],
+        }),
         server.register(fastifyCookie, { secret: 'xyz' }),
         server.register(fastifyCompress, { global: true }),
         server.register(fastifyHelmet, {
