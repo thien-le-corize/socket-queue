@@ -20,7 +20,7 @@ const buildServer = async () => {
         server.register(cors, {
             origin: [
                 'http://localhost:3000',
-                'https://webdiff-lovat.vercel.app/',
+                'https://webdiff-lovat.vercel.app',
             ],
         }),
         server.register(fastifyCookie, { secret: 'xyz' }),
