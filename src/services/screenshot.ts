@@ -5,7 +5,8 @@ import puppeteer from 'puppeteer'
 import admin from 'firebase-admin'
 import { defaultPageSnapshot } from '../constants'
 import { UrlType } from '@/types'
-
+import { Server } from 'socket.io'
+const { finishTask } = require('../controllers/taskManager/taskManager')
 export const handleCreateNewVisualChecks = async (
     projectId: string,
     userId: string
@@ -68,7 +69,7 @@ export const handleUpdatePageSnapshotDocs = async (
     urlList: UrlType[],
     visualCheckId: string,
     projectId: string,
-    io: any
+    socket: Server
 ) => {
     try {
         for (const url of urlList) {
@@ -82,9 +83,9 @@ export const handleUpdatePageSnapshotDocs = async (
 
             await updateDoc(pagesSnapshotsRef, screenshotData)
 
-            handleEmitEvent(visualCheckId, url.pageSnapshotId, io)
+            handleEmitEvent(visualCheckId, url.pageSnapshotId, socket)
         }
-
+        finishTask(visualCheckId)
         handleUpdateProgress(visualCheckId)
     } catch (error) {
         console.log(error)
@@ -106,14 +107,27 @@ const handleUpdateProgress = async (visualCheckId: string, url?: string) => {
     }
 }
 
+export const handleCancelProgress = async (visualCheckId: string) => {
+    try {
+        const currentCommitRef = doc(db, `/visualchecks/${visualCheckId}`)
+
+        const res = await updateDoc(currentCommitRef, {
+            screenshotingUrl: null,
+        })
+        console.log(res)
+    } catch (error) {
+        throw error
+    }
+}
+
 const handleEmitEvent = async (
     visualCheckId: string,
     pageSnapId: string,
-    io: any
+    socket: Server
 ) => {
     try {
         const updatedData = await handleGetPageSnap(visualCheckId, pageSnapId)
-        io.emit('updated-page-snapshot-data', updatedData)
+        socket.emit('updated-page-snapshot-data', updatedData)
     } catch (error) {
         throw error
     }
