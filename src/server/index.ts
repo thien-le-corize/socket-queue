@@ -64,7 +64,7 @@ const main = async () => {
         app.get('/ping', async (request, reply) => {
             reply.send('<h1>Pong!</h1>')
         })
-        app.listen(PORT, '127.0.0.1', () => {
+        app.listen(PORT, '0.0.0.0', () => {
             console.log(`Server listening on port ${PORT}`)
         })
     } catch (error) {
