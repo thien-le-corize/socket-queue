@@ -44,7 +44,9 @@ const runVisualController = (
             throw error
         }
     })
-
+    server.get('/test', async (request, reply) => {
+        reply.status(200).send({ message: 'ok', data: 'test oke' })
+    })
     server.post('/create-visual-page-snapshot', async (request, reply) => {
         const { urlList, userId, projectId } =
             request.body as CreatePageSnapRequestBody
