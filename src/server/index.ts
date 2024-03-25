@@ -10,7 +10,7 @@ import fastifyCookie from '@fastify/cookie'
 import fastifyHelmet from '@fastify/helmet'
 import cfrsProtection from '@fastify/csrf-protection'
 
-const PORT = 3000
+const PORT = 3001
 
 const buildServer = async () => {
     const server = await fastify({ logger: true })
@@ -18,10 +18,7 @@ const buildServer = async () => {
     await Promise.all([
         server.register(fastifySocketIO),
         server.register(cors, {
-            origin: [
-                'https://webdiff-lovat.vercel.app',
-                'http://localhost:3000',
-            ],
+            origin: '*',
         }),
         server.register(fastifyCookie, { secret: 'xyz' }),
         server.register(fastifyCompress, { global: true }),
@@ -63,6 +60,9 @@ const main = async () => {
                     console.log(message)
                 })
             })
+        })
+        app.get('/ping', async (request, reply) => {
+            reply.send('<h1>Pong!</h1>')
         })
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`Server listening on port ${PORT}`)
