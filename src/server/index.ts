@@ -1,26 +1,26 @@
 import fastify from 'fastify'
 import { initFirebaseAdmin } from '../firebase/admin'
+import { Server, Socket } from 'socket.io'
 import cors from '@fastify/cors'
+import fastifySocketIO from 'fastify-socket.io'
 import runVisualController from '../controllers/runVisualController'
 import { compareImage } from '../services/compareImage'
 import fastifyCompress from '@fastify/compress'
 import fastifyCookie from '@fastify/cookie'
 import fastifyHelmet from '@fastify/helmet'
 import cfrsProtection from '@fastify/csrf-protection'
-import fastifySocketIO from 'fastify-socket.io'
-import { Server } from 'socket.io'
 
 const PORT = 3000
 
 const buildServer = async () => {
-    const server = await fastify({ logger: false })
+    const server = await fastify({ logger: true })
 
     await Promise.all([
         server.register(fastifySocketIO),
         server.register(cors, {
             origin: [
-                'http://localhost:3000',
                 'https://webdiff-lovat.vercel.app',
+                'http://localhost:3000',
             ],
         }),
         server.register(fastifyCookie, { secret: 'xyz' }),
@@ -40,12 +40,8 @@ const buildServer = async () => {
 
     server.get('/', async (request, reply) => {
         const base64 = await compareImage()
-        // console.log(base64.data.toString('base64'))
 
-        console.log('MB: ' + base64.data.length / 1e6)
-        reply
-            .status(200)
-            .send({ message: 'ok', data: "base64.data.toString('base64')" })
+        reply.status(200).send({ message: 'ok', data: base64 })
     })
 
     return server
@@ -60,10 +56,10 @@ const main = async () => {
 
             initFirebaseAdmin()
 
-            app.io.on('connection', (socket: any) => {
+            app.io.on('connection', (socket: Socket) => {
                 console.log('Socket connected!', socket.id)
 
-                socket.on('disconnect', (message: string) => {
+                socket.on('disconnect', (message) => {
                     console.log(message)
                 })
             })
@@ -83,6 +79,6 @@ main()
 
 declare module 'fastify' {
     interface FastifyInstance {
-        io: Server
+        io: Server<any>
     }
 }
