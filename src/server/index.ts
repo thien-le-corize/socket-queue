@@ -1,24 +1,27 @@
 import fastify from 'fastify'
 import { initFirebaseAdmin } from '../firebase/admin'
-import { Server, Socket } from 'socket.io'
 import cors from '@fastify/cors'
-import fastifySocketIO from 'fastify-socket.io'
 import runVisualController from '../controllers/runVisualController'
-import { compareImage } from '../services/compareImage'
 import fastifyCompress from '@fastify/compress'
 import fastifyCookie from '@fastify/cookie'
 import fastifyHelmet from '@fastify/helmet'
 import cfrsProtection from '@fastify/csrf-protection'
+import fastifySocketIO from 'fastify-socket.io'
+import { Server } from 'socket.io'
+import { pageScreenshotController } from '../controllers/pageSreenshotController'
 
 const PORT = 3001
 
 const buildServer = async () => {
-    const server = await fastify({ logger: true })
+    const server = await fastify({ logger: false })
 
     await Promise.all([
         server.register(fastifySocketIO),
         server.register(cors, {
-            origin: '*',
+            origin: [
+                'http://localhost:3000',
+                'https://webdiff-lovat.vercel.app',
+            ],
         }),
         server.register(fastifyCookie, { secret: 'xyz' }),
         server.register(fastifyCompress, { global: true }),
@@ -33,13 +36,10 @@ const buildServer = async () => {
         server.register(runVisualController, {
             prefix: '/run-visual-snapshots',
         }),
+        server.register(pageScreenshotController, {
+            prefix: '/page-screenshot',
+        }),
     ])
-
-    server.get('/', async (request, reply) => {
-        const base64 = await compareImage()
-
-        reply.status(200).send({ message: 'ok', data: base64 })
-    })
 
     return server
 }
@@ -53,14 +53,15 @@ const main = async () => {
 
             initFirebaseAdmin()
 
-            app.io.on('connection', (socket: Socket) => {
+            app.io.on('connection', (socket: any) => {
                 console.log('Socket connected!', socket.id)
 
-                socket.on('disconnect', (message) => {
+                socket.on('disconnect', (message: string) => {
                     console.log(message)
                 })
             })
         })
+
         app.get('/ping', async (request, reply) => {
             reply.send('<h1>Pong!</h1>')
         })
@@ -68,10 +69,7 @@ const main = async () => {
             console.log(`Server listening on port ${PORT}`)
         })
     } catch (error) {
-        if (error) {
-            console.error(error)
-            process.exit(1)
-        }
+        process.exit(1)
     }
 }
 
@@ -79,6 +77,6 @@ main()
 
 declare module 'fastify' {
     interface FastifyInstance {
-        io: Server<any>
+        io: Server
     }
 }

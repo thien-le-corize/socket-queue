@@ -16,6 +16,7 @@ export const firebaseConfig = {
 const app = initializeApp(firebaseConfig)
 
 const db = getFirestore(app)
+
 export const serviceAccountPrivate: any = {
     type: 'service_account',
     project_id: 'api-web-diff',

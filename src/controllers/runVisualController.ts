@@ -1,7 +1,7 @@
 import {
     handleAddPageSnapshotDocs,
     handleCancelProgress,
-    handleCreateNewVisualChecks,
+    handleCreateNewVisualCheck,
     handleUpdatePageSnapshotDocs,
 } from '../services/screenshot'
 import { CreatePageSnapRequestBody, ScreenshotRequestBody } from '@/types'
@@ -20,63 +20,51 @@ const runVisualController = (
     done: () => void
 ) => {
     server.post('/', async (request, reply) => {
-        const { urlList, userId, projectId, visualCheckId } =
+        const { userId, projectId, visualCheckId } =
             request.body as ScreenshotRequestBody
 
-        console.log(urlList, userId, projectId, visualCheckId)
-        if (!urlList.length || !userId || !projectId || !visualCheckId) {
+        if (!userId || !projectId || !visualCheckId) {
             reply.status(400).send({ message: 'Bad request' })
         }
 
         try {
             startTask(visualCheckId)
             await handleUpdatePageSnapshotDocs(
-                urlList,
                 visualCheckId,
                 projectId,
                 server.io
             )
-            console.log('Task started:', visualCheckId)
             reply.status(201).send({ message: 'OK' })
         } catch (error) {
             cancelTask(visualCheckId)
-            console.log(error)
             throw error
         }
     })
-    server.get('/test', async (request, reply) => {
-        reply.status(200).send({ message: 'ok', data: 'test oke' })
-    })
-    server.post('/create-visual-page-snapshot', async (request, reply) => {
-        const { urlList, userId, projectId } =
-            request.body as CreatePageSnapRequestBody
 
-        if (!urlList.length || !userId || !projectId) {
-            console.log(urlList, userId, projectId)
+    server.post('/create-visual-page-snapshot', async (request, reply) => {
+        const { userId, projectId } = request.body as CreatePageSnapRequestBody
+
+        if (!userId || !projectId) {
             reply.status(400).send({ message: 'Bad request' })
         }
 
         try {
-            const visualCheckId = await handleCreateNewVisualChecks(
+            const visualCheckId = await handleCreateNewVisualCheck(
                 projectId,
                 userId
             )
             startTask(visualCheckId)
-            console.log('Task started:', visualCheckId)
-            const formatedUrlList = await handleAddPageSnapshotDocs(
-                visualCheckId,
-                urlList
-            )
+            await handleAddPageSnapshotDocs(visualCheckId, projectId)
             finishTask(visualCheckId)
-            console.log('Task started:', visualCheckId)
             reply.status(201).send({
                 message: 'OK',
-                data: { urlList: formatedUrlList, visualCheckId },
+                data: { visualCheckId },
             })
         } catch (error) {
             throw error
         }
     })
+
     server.post('/cancel-visual-page-snapshot', async (request, reply) => {
         const { visualCheckId } = request.body as { visualCheckId: string }
         try {
@@ -109,7 +97,6 @@ const runVisualController = (
                 data: task,
             })
         } catch (error) {
-            console.log(error)
             throw error
         }
     })

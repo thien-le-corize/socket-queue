@@ -1,13 +1,26 @@
 import db, { storage } from '../firebase'
-import { addDoc, collection, doc, getDoc, updateDoc } from 'firebase/firestore'
+import {
+    addDoc,
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    updateDoc,
+} from 'firebase/firestore'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import puppeteer from 'puppeteer'
 import admin from 'firebase-admin'
 import { defaultPageSnapshot } from '../constants'
-import { UrlType } from '@/types'
+import { SCREENSHOT_STATUS_TYPE } from '../types'
 import { Server } from 'socket.io'
-const { finishTask } = require('../controllers/taskManager/taskManager')
-export const handleCreateNewVisualChecks = async (
+import {
+    finishTask,
+    isTaskRunning,
+} from '../controllers/taskManager/taskManager'
+import { keyBy } from '../helpers/keyBy'
+import { compareImage } from './compareImage'
+
+export const handleCreateNewVisualCheck = async (
     projectId: string,
     userId: string
 ) => {
@@ -32,64 +45,124 @@ export const handleCreateNewVisualChecks = async (
 
 export const handleAddPageSnapshotDocs = async (
     visualCheckId: string,
-    urlList: string[]
+    projectId: string
 ) => {
     try {
         await handleCreteSubCollection(visualCheckId)
 
-        const pagesSnapshotsRef = collection(
+        const commitPagesSnapshotsRef = collection(
             db,
             `/visualchecks/${visualCheckId}/pagesnapshots`
         )
 
-        const formatedUrlList = []
+        const basePagesSnapshotsRef = collection(
+            db,
+            `/projects/${projectId}/pageSnapShot`
+        )
 
-        for (const url of urlList) {
+        const basePageSnapsSnap = await getDocs(basePagesSnapshotsRef)
+
+        const basePageSnapshots: { id: string; url: string; path: string }[] =
+            []
+
+        basePageSnapsSnap.docs.forEach((doc) => {
+            const data = doc.data()
+
+            if (data.screenshotStatus === SCREENSHOT_STATUS_TYPE.done) {
+                basePageSnapshots.push({
+                    id: doc.id,
+                    url: data.url,
+                    path: data.path,
+                })
+            }
+        })
+
+        console.log(basePageSnapshots)
+        const basePageSnapsUrlsObject = keyBy(basePageSnapshots, 'url')
+
+        for (const basePageSnapshot of basePageSnapshots) {
             const pageSnapshot = {
                 ...defaultPageSnapshot,
                 createdAt: new Date().toString(),
-                url,
+                currentBasePath:
+                    basePageSnapsUrlsObject[basePageSnapshot.url].path,
+                url: basePageSnapshot.url,
             }
-
             const pageSnapShotSnap = await addDoc(
-                pagesSnapshotsRef,
+                commitPagesSnapshotsRef,
                 pageSnapshot
             )
-
-            formatedUrlList.push({ pageSnapshotId: pageSnapShotSnap.id, url })
         }
 
-        return formatedUrlList
+        return visualCheckId
     } catch (error) {
         throw error
     }
 }
 
 export const handleUpdatePageSnapshotDocs = async (
-    urlList: UrlType[],
     visualCheckId: string,
     projectId: string,
     socket: Server
 ) => {
     try {
-        for (const url of urlList) {
-            handleUpdateProgress(visualCheckId, url.url)
-            const screenshotData = await handleScreenshot(url.url, projectId)
+        const commitPagesSnapshotsRef = collection(
+            db,
+            `/visualchecks/${visualCheckId}/pagesnapshots`
+        )
+
+        const commitPagesSnapshotsSnap = await getDocs(commitPagesSnapshotsRef)
+
+        const commitPagesSnapshots = commitPagesSnapshotsSnap.docs.map(
+            (doc) => {
+                const data = doc.data()
+
+                return {
+                    id: doc.id,
+                    url: data.url,
+                    path: data.path,
+                    currentBasePath: data.currentBasePath,
+                }
+            }
+        )
+
+        console.log(commitPagesSnapshots)
+
+        for (const commitPagesSnapshot of commitPagesSnapshots) {
+            if (!isTaskRunning(visualCheckId)) {
+                break
+            }
+
+            const pageSnapshotId = commitPagesSnapshot.id
+
+            handleUpdateProgress(visualCheckId, commitPagesSnapshot.url)
+
+            const screenshotData = await handleScreenshot(
+                commitPagesSnapshot.url,
+                projectId
+            )
+
+            const compareImageData = await compareImage(
+                commitPagesSnapshot.currentBasePath,
+                screenshotData.path
+            )
 
             const pagesSnapshotsRef = doc(
                 db,
-                `/visualchecks/${visualCheckId}/pagesnapshots/${url.pageSnapshotId}`
+                `/visualchecks/${visualCheckId}/pagesnapshots/${pageSnapshotId}`
             )
 
-            await updateDoc(pagesSnapshotsRef, screenshotData)
+            await updateDoc(pagesSnapshotsRef, {
+                ...screenshotData,
+                ...compareImageData,
+            })
 
-            handleEmitEvent(visualCheckId, url.pageSnapshotId, socket)
+            handleEmitEvent(visualCheckId, pageSnapshotId, socket)
         }
         finishTask(visualCheckId)
         handleUpdateProgress(visualCheckId)
     } catch (error) {
-        console.log(error)
-        throw error
+        // throw error
     }
 }
 
@@ -194,7 +267,7 @@ const handleScreenshot = async (url: string, projectId: string) => {
 }
 
 const handleCreteSubCollection = async (visualCheckId: string) => {
-    return await new Promise<void>(async (resolve, reject) => {
+    return await new Promise<void>(async (resolve) => {
         admin
             .firestore()
             .collection('visualchecks')

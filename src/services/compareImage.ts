@@ -1,26 +1,26 @@
 import { urlToBuffer } from '../helpers/urlToBuffer'
 import pixelMatch from 'pixelmatch'
 import { PNG } from 'pngjs'
-import fs from 'fs'
+import { UrlToBuffer } from '@/types'
+import { handleResizeImage } from './resizeImage'
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
+import { storage } from '../firebase'
 
-const img1 =
-    'https://images.pexels.com/photos/417074/pexels-photo-417074.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2'
-const img2 =
-    'https://images.pexels.com/photos/381739/pexels-photo-381739.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2'
-
-export const compareImage = async () => {
+export const compareImage = async (baseUrl: string, compareUrl: string) => {
     try {
-        const [image1Buffer, image2Buffer] = await Promise.all([
-            urlToBuffer(img1),
-            urlToBuffer(img2),
-        ])
+        const [imageABuffer, imageBBuffer] = await urlsToBuffer(
+            baseUrl,
+            compareUrl
+        )
 
-        const imgA = PNG.sync.read(image1Buffer)
-        const imgB = PNG.sync.read(image2Buffer)
+        const [resizedImageABuffer, resizedImageBBuffer] =
+            await handleResizeImages(imageABuffer, imageBBuffer)
+
+        const imgA = PNG.sync.read(resizedImageABuffer)
+        const imgB = PNG.sync.read(resizedImageBBuffer)
 
         const { width, height } = imgA
         const diff = new PNG({ width, height })
-        // console.log(diff.data)
 
         const difference = pixelMatch(
             imgA.data,
@@ -33,15 +33,53 @@ export const compareImage = async () => {
             }
         )
 
+        const { downloadURL } = await handleUploadImage(PNG.sync.write(diff))
         const compatibility = 100 - (difference * 100) / (width * height)
-        fs.writeFileSync('diff.png', PNG.sync.write(diff))
-        // console.log(diff.data)
-        // console.log(`${difference} pixels differences`)
-        // console.log(`Compatibility: ${compatibility}%`)
-        // console.log('< Completed comparing two images')
-        return diff
+
+        return {
+            match: compatibility,
+            diff: 100 - compatibility,
+            diffPixel: difference,
+            diffImage: downloadURL,
+        }
     } catch (error) {
-        // console.log(error)
+        throw error
+    }
+}
+
+const handleUploadImage = async (image: Buffer) => {
+    const screenshotName = `diff-${Date.now()}.png`
+    const screenshotRef = ref(storage, `screenshots/${screenshotName}`)
+    const snapshot = await uploadBytes(screenshotRef, image)
+    const downloadURL = await getDownloadURL(snapshot.ref)
+
+    return { downloadURL }
+}
+
+const urlsToBuffer = async (img1: string, img2: string) => {
+    try {
+        const [imageA, imageB] = await Promise.all([
+            urlToBuffer(img1),
+            urlToBuffer(img2),
+        ])
+
+        return [imageA, imageB]
+    } catch (error) {
+        throw error
+    }
+}
+
+const handleResizeImages = async (imageA: UrlToBuffer, imageB: UrlToBuffer) => {
+    const newHeight = Math.max(imageA.bitmap.height, imageB.bitmap.height)
+
+    try {
+        const [resizedImageABuffer, resizedImageBBuffer] = await Promise.all([
+            handleResizeImage(imageA.buffer, imageA.bitmap.width, newHeight),
+            handleResizeImage(imageB.buffer, imageB.bitmap.width, newHeight),
+        ])
+
+        return [resizedImageABuffer, resizedImageBBuffer]
+    } catch (error) {
         throw error
     }
 }

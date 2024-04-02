@@ -1,9 +1,12 @@
-// Object: taskManager
-const runningTasks: {
-    [visualCheckId: string]: {
+type RunningTaskType = Record<
+    string,
+    {
         running: boolean
     }
-} = {}
+>
+
+// Object: taskManager
+const runningTasks: RunningTaskType = {}
 
 /**
  * Start task new.
@@ -18,7 +21,7 @@ const startTask = (visualCheckId: string) => {
  * @param {string} visualCheckId - task id.
  * @returns {boolean} - status id.
  */
-const isTaskRunning = (visualCheckId: string) => {
+const isTaskRunning = (visualCheckId: string): boolean => {
     return runningTasks[visualCheckId]
         ? runningTasks[visualCheckId].running
         : false
@@ -46,4 +49,4 @@ const getTask = (visualCheckId: string) => {
     return runningTasks[visualCheckId]
 }
 
-module.exports = { startTask, isTaskRunning, cancelTask, finishTask, getTask }
+export { startTask, isTaskRunning, cancelTask, finishTask, getTask }
