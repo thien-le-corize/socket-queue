@@ -34,7 +34,10 @@ export const compareImage = async (baseUrl: string, compareUrl: string) => {
         )
 
         const { downloadURL } = await handleUploadImage(PNG.sync.write(diff))
-        const compatibility = 100 - (difference * 100) / (width * height)
+
+        const compatibility = Math.round(
+            100 - (difference * 100) / (width * height)
+        )
 
         return {
             match: compatibility,

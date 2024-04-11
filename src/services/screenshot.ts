@@ -11,7 +11,12 @@ import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import puppeteer from 'puppeteer'
 import admin from 'firebase-admin'
 import { defaultPageSnapshot } from '../constants'
-import { SCREENSHOT_STATUS_TYPE } from '../types'
+import {
+    CommitPageSnapshotType,
+    CommitType,
+    CommitValuesType,
+    SCREENSHOT_STATUS_TYPE,
+} from '../types'
 import { Server } from 'socket.io'
 import {
     finishTask,
@@ -77,7 +82,6 @@ export const handleAddPageSnapshotDocs = async (
             }
         })
 
-        console.log(basePageSnapshots)
         const basePageSnapsUrlsObject = keyBy(basePageSnapshots, 'url')
 
         for (const basePageSnapshot of basePageSnapshots) {
@@ -88,10 +92,8 @@ export const handleAddPageSnapshotDocs = async (
                     basePageSnapsUrlsObject[basePageSnapshot.url].path,
                 url: basePageSnapshot.url,
             }
-            const pageSnapShotSnap = await addDoc(
-                commitPagesSnapshotsRef,
-                pageSnapshot
-            )
+
+            await addDoc(commitPagesSnapshotsRef, pageSnapshot)
         }
 
         return visualCheckId
@@ -100,80 +102,186 @@ export const handleAddPageSnapshotDocs = async (
     }
 }
 
+const handleGetNewCommit = async (
+    projectId: string,
+    visualCheckId: string,
+    socket: Server
+) => {
+    const commitPagesSnapshotsRef = collection(
+        db,
+        `/visualchecks/${visualCheckId}/pagesnapshots`
+    )
+
+    const commitRef = doc(db, `/visualchecks/${visualCheckId}`)
+
+    const [commitPagesSnapshotsSnap, commitSnap] = await Promise.all([
+        getDocs(commitPagesSnapshotsRef),
+        getDoc(commitRef),
+    ])
+
+    const commitPagesSnapshots = commitPagesSnapshotsSnap.docs.map((doc) => {
+        const data = doc.data()
+
+        return {
+            id: doc.id,
+            url: data.url,
+            path: data.path,
+            diff: data.diff,
+            match: data.match,
+            createdAt: data.createdAt,
+            diffImage: data.diffImage,
+            diffPixel: data.diffPixel,
+            currentBasePath: data.currentBasePath,
+        }
+    })
+
+    const commit = commitSnap.data()
+
+    const responseCommit: CommitType = {
+        id: commitSnap.id,
+        fail: commit?.fail ?? 0,
+        success: commit?.success ?? 0,
+        progress: commit?.progress ?? 0,
+        projectId: commit?.projectId ?? '',
+        screenshotingUrl: commit?.screenshotingUrl ?? '',
+        userId: commit?.userId ?? '',
+        pageSnapshots: commitPagesSnapshots,
+    }
+
+    handleEmitNewCommit(socket, projectId, visualCheckId, responseCommit)
+
+    return responseCommit
+}
+
+const handleEmitNewCommit = (
+    socket: Server,
+    projectId: string,
+    visualCheckId: string,
+    newCommit: CommitType
+) => {
+    socket.emit(`projectId-${projectId}-new-created-commit`, {
+        newCommit,
+        visualCheckId,
+    })
+}
+
 export const handleUpdatePageSnapshotDocs = async (
     visualCheckId: string,
     projectId: string,
     socket: Server
 ) => {
     try {
-        const commitPagesSnapshotsRef = collection(
-            db,
-            `/visualchecks/${visualCheckId}/pagesnapshots`
+        const commit = await handleGetNewCommit(
+            projectId,
+            visualCheckId,
+            socket
         )
 
-        const commitPagesSnapshotsSnap = await getDocs(commitPagesSnapshotsRef)
+        const commitValues: CommitValuesType = {
+            success: 0,
+            fail: 0,
+            completed: 0,
+            commitsTotal: commit.pageSnapshots.length,
+        }
 
-        const commitPagesSnapshots = commitPagesSnapshotsSnap.docs.map(
-            (doc) => {
-                const data = doc.data()
-
-                return {
-                    id: doc.id,
-                    url: data.url,
-                    path: data.path,
-                    currentBasePath: data.currentBasePath,
-                }
-            }
-        )
-
-        console.log(commitPagesSnapshots)
-
-        for (const commitPagesSnapshot of commitPagesSnapshots) {
+        for (const commitPagesSnapshot of commit.pageSnapshots) {
             if (!isTaskRunning(visualCheckId)) {
                 break
             }
 
-            const pageSnapshotId = commitPagesSnapshot.id
+            try {
+                handleEmitImageProcessStartEvent(
+                    commitPagesSnapshot.url,
+                    visualCheckId,
+                    projectId,
+                    socket
+                )
 
-            handleUpdateProgress(visualCheckId, commitPagesSnapshot.url)
+                handleUpdateUrl(
+                    visualCheckId,
+                    undefined,
+                    undefined,
+                    commitPagesSnapshot.url
+                )
 
-            const screenshotData = await handleScreenshot(
-                commitPagesSnapshot.url,
-                projectId
-            )
+                const screenshotData = await handleScreenshot(
+                    commitPagesSnapshot.url,
+                    projectId
+                )
 
-            const compareImageData = await compareImage(
-                commitPagesSnapshot.currentBasePath,
-                screenshotData.path
-            )
+                const compareImageData = await compareImage(
+                    commitPagesSnapshot.currentBasePath,
+                    screenshotData.path
+                )
 
-            const pagesSnapshotsRef = doc(
-                db,
-                `/visualchecks/${visualCheckId}/pagesnapshots/${pageSnapshotId}`
-            )
+                const pagesSnapshotsRef = doc(
+                    db,
+                    `/visualchecks/${visualCheckId}/pagesnapshots/${commitPagesSnapshot.id}`
+                )
 
-            await updateDoc(pagesSnapshotsRef, {
-                ...screenshotData,
-                ...compareImageData,
-            })
+                await updateDoc(pagesSnapshotsRef, {
+                    ...screenshotData,
+                    ...compareImageData,
+                })
 
-            handleEmitEvent(visualCheckId, pageSnapshotId, socket)
+                commitValues.success++
+            } catch (error) {
+                commitValues.fail++
+            } finally {
+                commitValues.completed++
+                handleEmitImageProcessEndEvent(
+                    commitValues,
+                    visualCheckId,
+                    commitPagesSnapshot.id,
+                    projectId,
+                    socket
+                )
+            }
         }
         finishTask(visualCheckId)
-        handleUpdateProgress(visualCheckId)
+        handleUpdateUrl(visualCheckId, projectId, socket)
+        handleUpdateCommitValues(visualCheckId, commitValues)
     } catch (error) {
         // throw error
     }
 }
 
-const handleUpdateProgress = async (visualCheckId: string, url?: string) => {
+const handleUpdateCommitValues = async (
+    visualCheckId: string,
+    updateCommitValues: CommitValuesType
+) => {
+    const currentCommitRef = doc(db, `/visualchecks/${visualCheckId}`)
+
+    const { fail, success, completed, commitsTotal } = updateCommitValues
+
+    const progress = Math.round((completed / commitsTotal) * 100)
+
+    await updateDoc(currentCommitRef, {
+        progress,
+        success,
+        fail,
+    })
+}
+
+const handleUpdateUrl = (
+    visualCheckId: string,
+    projectId?: string,
+    socket?: Server,
+    url?: string
+) => {
     try {
         const currentCommitRef = doc(db, `/visualchecks/${visualCheckId}`)
-
         if (url) {
-            await updateDoc(currentCommitRef, { screenshotingUrl: url })
-        } else {
-            await updateDoc(currentCommitRef, { screenshotingUrl: null })
+            updateDoc(currentCommitRef, { screenshotingUrl: url })
+            return
+        }
+
+        if (socket && !url) {
+            socket.emit(`projectId-${projectId}-run-visual-done`, {
+                visualCheckId,
+            })
+
+            updateDoc(currentCommitRef, { screenshotingUrl: null })
         }
     } catch (error) {
         throw error
@@ -184,29 +292,85 @@ export const handleCancelProgress = async (visualCheckId: string) => {
     try {
         const currentCommitRef = doc(db, `/visualchecks/${visualCheckId}`)
 
-        const res = await updateDoc(currentCommitRef, {
+        await updateDoc(currentCommitRef, {
             screenshotingUrl: null,
         })
-        console.log(res)
     } catch (error) {
         throw error
     }
 }
 
-const handleEmitEvent = async (
+const handleEmitImageProcessStartEvent = async (
+    currentProcessingUrl: string,
+    visualCheckId: string,
+    projectId: string,
+    socket: Server
+) => {
+    socket.emit(`projectId-${projectId}-image-process-start`, {
+        currentProcessingUrl,
+        visualCheckId,
+    })
+}
+
+const handleEmitImageProcessEndEvent = async (
+    updateCommitValues: CommitValuesType,
     visualCheckId: string,
     pageSnapId: string,
+    projectId: string,
     socket: Server
 ) => {
     try {
-        const updatedData = await handleGetPageSnap(visualCheckId, pageSnapId)
-        socket.emit('updated-page-snapshot-data', updatedData)
+        const [updatedCommit, updatedPageSnap] = await Promise.all([
+            handleGetCommit(visualCheckId),
+            handleGetPageSnap(visualCheckId, pageSnapId),
+        ])
+
+        const { fail, success, completed, commitsTotal } = updateCommitValues
+        const progress = Math.round((completed / commitsTotal) * 100)
+
+        if (updatedCommit) {
+            updatedCommit.fail = fail
+            updatedCommit.success = success
+            updatedCommit.progress = progress
+        }
+
+        socket.emit(`projectId-${projectId}-image-process-end`, {
+            updatedPageSnap,
+            updatedCommit,
+            visualCheckId,
+            pageSnapId,
+        })
     } catch (error) {
         throw error
     }
 }
 
-const handleGetPageSnap = async (visualCheckId: string, pageSnapId: string) => {
+const handleGetCommit = async (
+    visualCheckId: string
+): Promise<Omit<CommitType, 'pageSnapshots'>> => {
+    try {
+        const commitRef = doc(db, `/visualchecks/${visualCheckId}`)
+        const commitSnap = await getDoc(commitRef)
+        const commit = commitSnap.data()
+
+        return {
+            id: commitSnap.id,
+            fail: commit?.fail ?? 0,
+            success: commit?.success ?? 0,
+            progress: commit?.progress ?? 0,
+            projectId: commit?.projectId ?? '',
+            screenshotingUrl: commit?.screenshotingUrl ?? '',
+            userId: commit?.userId ?? '',
+        }
+    } catch (error) {
+        throw error
+    }
+}
+
+const handleGetPageSnap = async (
+    visualCheckId: string,
+    pageSnapId: string
+): Promise<CommitPageSnapshotType> => {
     try {
         const pagesSnapshotRef = doc(
             db,
@@ -214,9 +378,21 @@ const handleGetPageSnap = async (visualCheckId: string, pageSnapId: string) => {
         )
 
         const pagesSnapshotSnap = await getDoc(pagesSnapshotRef)
-        return pagesSnapshotSnap.data()
+        const pageSnap = pagesSnapshotSnap.data()
+
+        return {
+            id: pagesSnapshotSnap.id,
+            diff: pageSnap?.diff ?? 0,
+            match: pageSnap?.match ?? 0,
+            url: pageSnap?.url ?? '',
+            path: pageSnap?.path ?? '',
+            createdAt: pageSnap?.createdAt ?? '',
+            diffImage: pageSnap?.diffImage ?? '',
+            diffPixel: pageSnap?.diffPixel ?? 0,
+            currentBasePath: pageSnap?.currentBasePath ?? '',
+        }
     } catch (error) {
-        return
+        throw error
     }
 }
 

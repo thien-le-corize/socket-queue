@@ -53,9 +53,11 @@ const runVisualController = (
                 projectId,
                 userId
             )
+
             startTask(visualCheckId)
             await handleAddPageSnapshotDocs(visualCheckId, projectId)
             finishTask(visualCheckId)
+
             reply.status(201).send({
                 message: 'OK',
                 data: { visualCheckId },
