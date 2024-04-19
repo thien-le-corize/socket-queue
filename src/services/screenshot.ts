@@ -24,6 +24,7 @@ import {
 } from '../controllers/taskManager/taskManager'
 import { keyBy } from '../helpers/keyBy'
 import { compareImage } from './compareImage'
+import { create } from 'domain'
 
 export const handleCreateNewVisualCheck = async (
     projectId: string,
@@ -34,8 +35,10 @@ export const handleCreateNewVisualCheck = async (
             fail: 0,
             progress: 0,
             projectId,
-            status: 0,
+            status: 0, // 0: running, 1: done, 2: cancel
             success: 0,
+            createdAt: new Date().toString(),
+            finishAt: null,
             userId,
         }
 
@@ -131,6 +134,8 @@ const handleGetNewCommit = async (
             createdAt: data.createdAt,
             diffImage: data.diffImage,
             diffPixel: data.diffPixel,
+            status: data.status,
+            finishAt: data.finishAt,
             currentBasePath: data.currentBasePath,
         }
     })
@@ -146,6 +151,9 @@ const handleGetNewCommit = async (
         screenshotingUrl: commit?.screenshotingUrl ?? '',
         userId: commit?.userId ?? '',
         pageSnapshots: commitPagesSnapshots,
+        createdAt: commit?.createdAt ?? '',
+        finishAt: commit?.finishAt ?? '',
+        status: commit?.status ?? 0,
     }
 
     handleEmitNewCommit(socket, projectId, visualCheckId, responseCommit)
@@ -272,16 +280,22 @@ const handleUpdateUrl = (
     try {
         const currentCommitRef = doc(db, `/visualchecks/${visualCheckId}`)
         if (url) {
-            updateDoc(currentCommitRef, { screenshotingUrl: url })
+            updateDoc(currentCommitRef, { screenshotingUrl: url, status: 0 })
             return
         }
-
+        // screenshot done
         if (socket && !url) {
             socket.emit(`projectId-${projectId}-run-visual-done`, {
                 visualCheckId,
             })
 
-            updateDoc(currentCommitRef, { screenshotingUrl: null })
+            updateDoc(currentCommitRef, {
+                screenshotingUrl: null,
+                finishAt: new Date().toString(),
+                status: 1,
+            })
+
+            finishTask(visualCheckId)
         }
     } catch (error) {
         throw error
@@ -294,6 +308,7 @@ export const handleCancelProgress = async (visualCheckId: string) => {
 
         await updateDoc(currentCommitRef, {
             screenshotingUrl: null,
+            status: 2,
         })
     } catch (error) {
         throw error

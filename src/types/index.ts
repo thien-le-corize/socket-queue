@@ -52,4 +52,7 @@ export type CommitType = {
     screenshotingUrl: string | null
     fail: number
     pageSnapshots: CommitPageSnapshotType[]
+    createdAt?: string
+    finishAt?: string
+    status?: number
 }

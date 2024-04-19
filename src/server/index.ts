@@ -13,7 +13,7 @@ import { pageScreenshotController } from '../controllers/pageSreenshotController
 const PORT = 3001
 
 const buildServer = async () => {
-    const server = await fastify({ logger: false })
+    const server = await fastify({ logger: true })
 
     await Promise.all([
         server.register(fastifySocketIO),

@@ -43,7 +43,7 @@ const runVisualController = (
 
     server.post('/create-visual-page-snapshot', async (request, reply) => {
         const { userId, projectId } = request.body as CreatePageSnapRequestBody
-
+        console.log('visualCheckId', projectId)
         if (!userId || !projectId) {
             reply.status(400).send({ message: 'Bad request' })
         }
